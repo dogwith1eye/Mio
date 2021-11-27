@@ -24,12 +24,28 @@ internal class FiberContext<A> : Fiber<A>
             switch (curMio.Tag)
             {
                 case Tags.FlatMap:
-                    stack.Push(curMio);
-                    curMio = curMio.Mio;
+                    switch (curMio.Mio.Tag)
+                    {
+                        case Tags.SucceedNow:
+                            curMio = curMio.Apply(curMio.Mio.Value);
+                            break;
+
+                        case Tags.Succeed:
+                            var svalue = curMio.Mio.Effect();
+                            curMio = curMio.Apply(svalue);
+                            break;
+
+                        default:
+                            stack.Push(curMio);
+                            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} FlatMap count={stack.Count}");
+                            curMio = curMio.Mio;
+                            break;
+                    }
                     break;
 
                 case Tags.Fold:
                     stack.Push(curMio);
+                    Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} Fold count={stack.Count}");
                     curMio = curMio.Mio;
                     break;
 
@@ -51,6 +67,7 @@ internal class FiberContext<A> : Fiber<A>
         if (stack.Count > 0)
         {
             var cont = stack.Pop();
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} UnsafeNextEffect count={stack.Count}");
             return cont.Apply(previousSuccess);
         }
         else

@@ -9,7 +9,7 @@ class StackSafety : MIOApp<Unit>
         {
             Console.WriteLine("Howdy!");
             return Unit();
-        }).Repeat(10000);
+        }).Repeat(100);
 
     public MIO<Unit> Run() => MyProgram;
 }
