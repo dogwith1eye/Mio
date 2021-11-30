@@ -7,6 +7,6 @@ public interface MIOApp<A>
     void Main(string[] args)
     {
         var result = this.Run().UnsafeRunSync();
-        Console.WriteLine("The result was ${result}");
+        Console.WriteLine($"The result was {result}");
     }
 }

@@ -21,6 +21,8 @@ internal class FiberContext<A> : Fiber<A>
 
         while (curMio is not null)
         {
+            try
+            {
             switch (curMio.Tag)
             {
                 case Tags.Fail:
@@ -69,6 +71,11 @@ internal class FiberContext<A> : Fiber<A>
                 case Tags.Succeed:
                     curMio = UnsafeNextEffect(curMio.Effect());
                     break;
+            }
+            }
+            catch (Exception ex)
+            {
+                curMio = MIO.Die(ex);
             }
         } 
         return Unit();

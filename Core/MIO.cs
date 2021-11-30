@@ -201,6 +201,8 @@ public static class MIO
         new Fail<A>(() => Cause.Fail(ex()));
     public static MIO<A> Failure<A>(Func<Cause> cause) =>
         new Fail<A>(cause);
+    public static MIO<Unit> Die(Exception ex) =>
+        Failure<Unit>(() => Cause.Die(ex));
     public static MIO<A> Succeed<A>(Func<A> f) => 
             new Succeed<A>(f);
     internal static MIO<A> SucceedNow<A>(A value) => 

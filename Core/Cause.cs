@@ -23,8 +23,6 @@ public class Die : Cause
 {
     CauseTags Cause.Tag => CauseTags.Die;
     public Exception Exception => _exception;
-    Exception Cause.Exception => throw new NotImplementedException();
-
     private Exception _exception;
     internal Die(Exception exception)
     {
