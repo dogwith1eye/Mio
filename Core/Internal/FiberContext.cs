@@ -23,6 +23,18 @@ internal class FiberContext<A> : Fiber<A>
         {
             switch (curMio.Tag)
             {
+                case Tags.Fail:
+                    var errorHandler = UnsafeUnwindStack();
+                    if (errorHandler is null)
+                    {
+                        UnsafeTryDone(EXIT.Failure(curMio.Cause()));
+                    }
+                    else
+                    {
+                        curMio = errorHandler.Failure(curMio.Cause());
+                    }
+                    break;
+
                 case Tags.FlatMap:
                     switch (curMio.Mio.Tag)
                     {
@@ -98,4 +110,22 @@ internal class FiberContext<A> : Fiber<A>
         
         return Unit();
     }
+
+    dynamic? UnsafeUnwindStack()
+    {
+        var unwinding = true;
+        dynamic? errorHandler = null;
+        while (unwinding && stack.Count > 0)
+        {
+            var curMio = stack.Pop();
+            switch (curMio.Tag)
+            {
+                case Tags.Fold:
+                    errorHandler = curMio;
+                    unwinding = false;
+                    break;
+            }     
+        }
+        return errorHandler;
+    } 
 }
