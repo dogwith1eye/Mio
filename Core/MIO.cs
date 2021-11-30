@@ -83,13 +83,13 @@ public interface MIO<A>
     Exit<A> UnsafeRunSync()
     {
         var latch = new CountdownEvent(1);
-        var result = EXIT.Default<A>();
+        var result = Exit.Default<A>();
         var mio = this.FoldCauseMIO(
             cause =>
             {
                 return MIO.Succeed(() =>
                 {
-                    result = EXIT.Failure<A>(cause);
+                    result = Exit.Failure<A>(cause);
                     latch.Signal();
                     return Unit();
                 });
@@ -98,7 +98,7 @@ public interface MIO<A>
             {
                 return MIO.Succeed(() =>
                 {
-                    result = EXIT.Succeed(a);
+                    result = Exit.Succeed(a);
                     latch.Signal();
                     return Unit();
                 });
@@ -198,7 +198,7 @@ internal class SucceedNow<A> : MIO<A>
 public static class MIO
 {
      public static MIO<A> Fail<A>(Func<Exception> ex) =>
-        new Fail<A>(() => CAUSE.Fail(ex()));
+        new Fail<A>(() => Cause.Fail(ex()));
     public static MIO<A> Failure<A>(Func<Cause> cause) =>
         new Fail<A>(cause);
     public static MIO<A> Succeed<A>(Func<A> f) => 

@@ -29,12 +29,12 @@ internal class Running<A> : FiberState<A>
     }
 }
 
-static class FIBER_STATE
+static class FiberState
 {
     public static FiberState<A> Done<A>(Exit<A> result) => 
         new Done<A>(result);
     public static FiberState<A> Running<A>(List<Func<Exit<A>, Unit>> callbacks) => 
         new Running<A>(callbacks);
     public static FiberState<A> Initial<A>() => 
-        FIBER_STATE.Running(new List<Func<Exit<A>, Unit>>());
+        FiberState.Running(new List<Func<Exit<A>, Unit>>());
 }  

@@ -31,12 +31,12 @@ public struct Exit<A>
             t => $"Success({t})");
 }
 
-static class EXIT
+static class Exit
 {
     public static Exit<A> Default<A>() =>
         new Exit<A>(default(A));
     public static Exit<A> Fail<A>(Exception ex) =>
-        EXIT.Failure<A>(CAUSE.Fail(ex));
+        Exit.Failure<A>(Cause.Fail(ex));
     public static Exit<A> Failure<A>(Cause cause) => 
         new Exit<A>(cause);
     public static Exit<A> Succeed<A>(A value) => 

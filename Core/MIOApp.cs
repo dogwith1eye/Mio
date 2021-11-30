@@ -10,8 +10,3 @@ public interface MIOApp<A>
         Console.WriteLine("The result was ${result}");
     }
 }
-
-static class MIOAPP
-{
-    public static MIOApp<A> Upcast<A>(MIOApp<A> app) => app;
-}

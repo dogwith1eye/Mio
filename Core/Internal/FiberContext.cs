@@ -3,7 +3,7 @@ internal class FiberContext<A> : Fiber<A>
 {
     private SynchronizationContext? currentExecutor = null;
     volatile private dynamic? nextEffect = null;
-    private FiberState<A> state =  FIBER_STATE.Initial<A>();
+    private FiberState<A> state =  FiberState.Initial<A>();
     private Stack<dynamic> stack = new Stack<dynamic>();
     public FiberContext(MIO<A> startMio, SynchronizationContext startExecutor)
     {
@@ -27,7 +27,7 @@ internal class FiberContext<A> : Fiber<A>
                     var errorHandler = UnsafeUnwindStack();
                     if (errorHandler is null)
                     {
-                        UnsafeTryDone(EXIT.Failure(curMio.Cause()));
+                        UnsafeTryDone(Exit.Failure(curMio.Cause()));
                     }
                     else
                     {
@@ -84,7 +84,7 @@ internal class FiberContext<A> : Fiber<A>
         }
         else
         {
-            return UnsafeTryDone(EXIT.Succeed<A>(previousSuccess));
+            return UnsafeTryDone(Exit.Succeed<A>(previousSuccess));
         }
     }
 

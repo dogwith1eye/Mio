@@ -11,6 +11,12 @@ public interface Cause
 {
     internal CauseTags Tag { get; }
     public Exception Exception { get; }
+    public static Cause Die(Exception exception) => 
+        new Die(exception);
+    public static Cause Fail(Exception exception) => 
+        new Fail(exception);
+    public static Cause Interrupt(Exception exception) => 
+        new Interrupt(exception);
 }
 
 public class Die : Cause 
@@ -46,14 +52,4 @@ public class Interrupt : Cause
     {
         this._exception = exception;
     }
-}
-
-static class CAUSE
-{
-    public static Cause Die(Exception exception) => 
-        new Die(exception);
-    public static Cause Fail(Exception exception) => 
-        new Fail(exception);
-    public static Cause Interrupt(Exception exception) => 
-        new Interrupt(exception);
 }
