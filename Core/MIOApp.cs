@@ -1,12 +1,16 @@
-namespace Mio;
+using System;
+using System.Threading;
 
-public interface MIOApp<A> 
+namespace Mio
 {
-    MIO<A> Run();
-
-    void Main(string[] args)
+    public interface MIOApp<A> 
     {
-        var result = this.Run().UnsafeRunSync();
-        Console.WriteLine($"The result was {result}");
+        MIO<A> Run();
+
+        void Main(string[] args)
+        {
+            var result = this.Run().UnsafeRunSync();
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} The result was {result}");
+        }
     }
 }
