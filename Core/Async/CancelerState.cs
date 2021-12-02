@@ -1,41 +1,39 @@
-namespace Mio.Async
+namespace Mio.Async;
+internal enum CancelerStateTags
 {
-    internal enum CancelerStateTags
-    {
-        Empty,
-        Pending,
-        Registered
-    }
-    internal interface CancelerState
-    {
-        internal CancelerStateTags Tag { get; }
-        public static CancelerState Empty() =>
-            new Empty();
-        public static CancelerState Pending() =>
-            new Pending();
-        public static CancelerState Registered(dynamic asyncCanceler) =>
-            new Registered(asyncCanceler);
-    }
+    Empty,
+    Pending,
+    Registered
+}
+internal interface CancelerState
+{
+    internal CancelerStateTags Tag { get; }
+    public static CancelerState Empty() =>
+        new Empty();
+    public static CancelerState Pending() =>
+        new Pending();
+    public static CancelerState Registered(dynamic asyncCanceler) =>
+        new Registered(asyncCanceler);
+}
 
-    internal class Empty : CancelerState
-    {
-        CancelerStateTags CancelerState.Tag => CancelerStateTags.Empty;
-        public Empty() { }
-    }
+internal class Empty : CancelerState
+{
+    CancelerStateTags CancelerState.Tag => CancelerStateTags.Empty;
+    public Empty() { }
+}
 
-    internal class Pending : CancelerState
-    {
-        CancelerStateTags CancelerState.Tag => CancelerStateTags.Pending;
-        public Pending() { }
-    }
+internal class Pending : CancelerState
+{
+    CancelerStateTags CancelerState.Tag => CancelerStateTags.Pending;
+    public Pending() { }
+}
 
-    internal class Registered : CancelerState
+internal class Registered : CancelerState
+{
+    CancelerStateTags CancelerState.Tag => CancelerStateTags.Registered;
+    public dynamic AsyncCanceler { get; }
+    public Registered(dynamic asyncCanceler)
     {
-        CancelerStateTags CancelerState.Tag => CancelerStateTags.Registered;
-        public dynamic AsyncCanceler { get; }
-        public Registered(dynamic asyncCanceler)
-        {
-            this.AsyncCanceler = asyncCanceler;
-        }
+        this.AsyncCanceler = asyncCanceler;
     }
 }

@@ -1,10 +1,7 @@
-using Unit = System.ValueTuple;
+namespace Mio;
 
-namespace Mio
+public interface Fiber<A>
 {
-    public interface Fiber<A>
-    {
-        MIO<A> Join();
-        MIO<Unit> Interrupt();
-    }
+    MIO<A> Join();
+    MIO<Unit> Interrupt();
 }

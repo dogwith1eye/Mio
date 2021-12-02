@@ -444,6 +444,9 @@ $RECYCLE.BIN/
 .idea/
 *.sln.iml
 
+# Scala metals
+.metals/
+
 ##
 ## Visual Studio Code
 ##
