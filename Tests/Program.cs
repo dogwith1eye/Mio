@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleToAttribute("Core")]
 
-var app = App.Workflow();
+var app = App.Interruption();
 app.Main(args);
 
 class StackSafety : MIOApp<Unit>
@@ -144,13 +144,6 @@ class Workflow : MIOApp<string>
         from b in WriteLine($"Nice")
         from c in WriteLine($"Nice")
         select "3 nices";
-        
-    static MIO<string> SimpleFour =
-        from a in WriteLine($"Nice")
-        from b in WriteLine($"Nice")
-        from c in WriteLine($"Nice")
-        from d in WriteLine($"Nice")
-        select "4 nices";
 
     static MIO<string> SimpleThreeDeSugared =
         WriteLine($"Nice")
@@ -244,50 +237,40 @@ class Forked : MIOApp<string>
             return complete(new Random().Next(999));
         });
 
-    static MIO<string> ForkedMIOOld =
-        from fiber1 in AsyncMIO.Fork()
-        //from fiber2 in AsyncMIO.Fork()
-        from _ in  WriteLine($"Nice")
-        //from i1 in fiber1.Join()
-        from __ in  WriteLine($"Nice")
-        //from i2 in fiber2.Join()
-        //select $"My beautiful ints {i1} {i1}";
-        select $"My beautiful ints";
-
     static MIO<string> ForkedMIO =
-        from a in  WriteLine($"Nice")
-        from b in  WriteLine($"Nice")
-        from c in  WriteLine($"Nice")
-        //from i2 in fiber2.Join()
-        //select $"My beautiful ints {i1} {i1}";
-        select $"My beautiful ints";
+        from fiber1 in AsyncMIO.Fork()
+        from fiber2 in AsyncMIO.Fork()
+        from _ in  WriteLine($"Nice")
+        from i1 in fiber1.Join()
+        from i2 in fiber2.Join()
+        select $"My beautiful ints {i1} {i1}";
 
     public MIO<string> Run() => ForkedMIO;
 }
 
-// class Interruption : MIOApp<Unit>
-// {
-//     static MIO<Unit> WriteLine(string message) => MIO.Succeed(() => 
-//     {
-//         Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {message}");
-//         return Unit();
-//     });
+class Interruption : MIOApp<Unit>
+{
+    static MIO<Unit> WriteLine(string message) => MIO.Succeed(() => 
+    {
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {message}");
+        return Unit();
+    });
 
-//     static MIO<Unit> MyProgram = 
-//         from fiber in WriteLine("Howdy!")
-//             .Forever()
-//             .Ensuring(WriteLine("Goodbye"))
-//             .Fork()
-//         from sleep in MIO.Succeed(() => 
-//         {
-//             Thread.Sleep(1000);
-//             return Unit();
-//         })
-//         from _ in fiber.Interrupt()
-//         select Unit();
+    static MIO<Unit> MyProgram = 
+        from fiber in WriteLine("Howdy!")
+            .Forever()
+            .Ensuring(WriteLine("Goodbye"))
+            .Fork()
+        from sleep in MIO.Succeed(() => 
+        {
+            Thread.Sleep(500);
+            return Unit();
+        })
+        from _ in fiber.Interrupt()
+        select Unit();
 
-//     public MIO<Unit> Run() => MyProgram;
-// }
+    public MIO<Unit> Run() => MyProgram;
+}
 
 static class App
 {
@@ -299,6 +282,7 @@ static class App
     public static MIOApp<int> ErrorHandlingThrowCatch() => new ErrorHandlingThrowCatch();
     public static MIOApp<string> Forked() => new Forked();
     public static MIOApp<Unit> FlatMap() => new FlatMap();
+    public static MIOApp<Unit> Interruption() => new Interruption();
     public static MIOApp<Unit> StackSafety() => new StackSafety();
     public static MIOApp<string> Workflow() => new Workflow();
 }

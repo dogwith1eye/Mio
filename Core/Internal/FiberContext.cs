@@ -45,79 +45,88 @@ internal class FiberContext<A> : Fiber<A>, Runnable
 
         while (curMio is not null)
         {
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {curMio} {stack.Count()}");
             try
             {
-                Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {curMio} {stack.Count()}");
-                switch (curMio.Tag)
+                if (ShouldInterrupt())
                 {
-                    case Tags.Async:
-                        if (stack.Count == 0)
-                        {      
-                            Func<Exit<A>, Unit> tryDone = (a) => UnsafeTryDone(a);
-                            curMio.Complete(tryDone);
-                            curMio = null;
-                        }
-                        else
-                        {
-                            Func<dynamic, Unit> resume = (next) => 
+                    Interrupting.Value = true;
+                    stack.Push(curMio);
+                    curMio = MIO.Failure<Unit>(() => Cause.Interrupt(null));
+                }
+                else
+                {
+                    switch (curMio.Tag)
+                    {
+                        case Tags.Async:
+                            if (stack.Count == 0)
+                            {      
+                                Func<Exit<A>, Unit> tryDone = (a) => UnsafeTryDone(a);
+                                curMio.Complete(tryDone);
+                                curMio = null;
+                            }
+                            else
                             {
-                                UnsafeRunLater(next);
-                                return Unit();
-                            };
-                            curMio.Resume(resume);
-                            curMio = null;
-                        }
-                        break;
+                                Func<dynamic, Unit> resume = (next) => 
+                                {
+                                    UnsafeRunLater(next);
+                                    return Unit();
+                                };
+                                curMio.Resume(resume);
+                                curMio = null;
+                            }
+                            break;
 
-                    case Tags.Fail:
-                        var errorHandler = UnsafeUnwindStack();
-                        if (errorHandler is null)
-                        {
-                            UnsafeTryDone(Exit.Failure(curMio.Cause()));
-                        }
-                        else
-                        {
-                            curMio = errorHandler.Failure(curMio.Cause());
-                        }
-                        break;
+                        case Tags.Fail:
+                            var errorHandler = UnsafeUnwindStack();
+                            if (errorHandler is null)
+                            {
+                                UnsafeTryDone(Exit.Failure(curMio.Cause()));
+                            }
+                            else
+                            {
+                                curMio = errorHandler.Failure(curMio.Cause());
+                            }
+                            break;
 
-                    case Tags.FlatMap:
-                        switch (curMio.Mio.Tag)
-                        {
-                            case Tags.SucceedNow:
-                                curMio = curMio.Apply(curMio.Mio.Value);
-                                break;
+                        case Tags.FlatMap:
+                            switch (curMio.Mio.Tag)
+                            {
+                                case Tags.SucceedNow:
+                                    curMio = curMio.Apply(curMio.Mio.Value);
+                                    break;
 
-                            case Tags.Succeed:
-                                var svalue = curMio.Mio.Effect();
-                                curMio = curMio.Apply(svalue);
-                                break;
+                                case Tags.Succeed:
+                                    var svalue = curMio.Mio.Effect();
+                                    curMio = curMio.Apply(svalue);
+                                    break;
 
-                            default:
-                                stack.Push(curMio);
-                                curMio = curMio.Mio;
-                                break;
-                        }
-                        break;
+                                default:
+                                    stack.Push(curMio);
+                                    curMio = curMio.Mio;
+                                    break;
+                            }
+                            break;
 
-                    case Tags.Fold:
-                        stack.Push(curMio);
-                        curMio = curMio.Mio;
-                        break;
+                        case Tags.Fold:
+                            stack.Push(curMio);
+                            curMio = curMio.Mio;
+                            break;
 
-                    case Tags.Fork:
-                        var fiber = curMio.CreateFiber(this.currentExecutor);
-                        curMio = UnsafeNextEffect(fiber);
-                        break;
+                        case Tags.Fork:
+                            var fiber = curMio.CreateFiber(this.currentExecutor);
+                            curMio = UnsafeNextEffect(fiber);
+                            break;
 
-                    case Tags.SucceedNow:
-                        var value = curMio.Value;
-                        curMio = UnsafeNextEffect(curMio.Value);
-                        break;
-                    
-                    case Tags.Succeed:
-                        curMio = UnsafeNextEffect(curMio.Effect());
-                        break;
+                        case Tags.SucceedNow:
+                            var value = curMio.Value;
+                            curMio = UnsafeNextEffect(curMio.Value);
+                            break;
+                        
+                        case Tags.Succeed:
+                            curMio = UnsafeNextEffect(curMio.Effect());
+                            break;
+                    }
                 }
             }
             catch (Exception ex)
@@ -127,6 +136,8 @@ internal class FiberContext<A> : Fiber<A>, Runnable
         } 
         return Unit();
     }
+
+    bool ShouldInterrupt() => Interrupted.Value && Interruptible.Value && !Interrupting.Value;
 
     public Unit UnsafeAwait(Func<Exit<A>, Unit> callback)
     {
