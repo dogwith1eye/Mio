@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleToAttribute("Core")]
 
-var app = App.Interruption();
+var app = App.Uninterruptible();
 app.Main(args);
 
 class StackSafety : MIOApp<Unit>
@@ -272,6 +272,47 @@ class Interruption : MIOApp<Unit>
     public MIO<Unit> Run() => MyProgram;
 }
 
+class Uninterruptible : MIOApp<Unit>
+{
+    static MIO<Unit> WriteLine(string message) => MIO.Succeed(() => 
+    {
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {message}");
+        return Unit();
+    });
+
+    static MIO<Unit> Uninterruptible = 
+        from fiber in WriteLine("Howdy!")
+            .Repeat(10000)
+            .Uninterruptible()
+            .ZipRight(() => WriteLine("Howdy! Howdy!").Forever())
+            .Ensuring(WriteLine("Goodbye"))
+            .Fork()
+        from sleep in MIO.Succeed(() => 
+        {
+            Thread.Sleep(100);
+            return Unit();
+        })
+        from _ in fiber.Interrupt()
+        select Unit();
+
+    static MIO<Unit> UninterruptibleSwitchBack = 
+        from fiber in WriteLine("Howdy!")
+            .Repeat(10000)
+            .Uninterruptible()
+            .ZipRight(() => WriteLine("Howdy! Howdy!").Forever())
+            .Ensuring(WriteLine("Goodbye"))
+            .Fork()
+        from sleep in MIO.Succeed(() => 
+        {
+            Thread.Sleep(100);
+            return Unit();
+        })
+        from _ in fiber.Interrupt()
+        select Unit();
+
+    public MIO<Unit> Run() => Uninterruptible;
+}
+
 static class App
 {
     public static MIOApp<int> Async() => new Async();
@@ -284,5 +325,6 @@ static class App
     public static MIOApp<Unit> FlatMap() => new FlatMap();
     public static MIOApp<Unit> Interruption() => new Interruption();
     public static MIOApp<Unit> StackSafety() => new StackSafety();
+    public static MIOApp<Unit> Uninterruptible() => new Uninterruptible();
     public static MIOApp<string> Workflow() => new Workflow();
 }

@@ -79,6 +79,9 @@ public interface MIO<A>
     MIO<Fiber<A>> Fork() =>
         new Fork<A>(this);
 
+    MIO<A> Interruptible() =>
+        SetInterruptStatus(InterruptStatus.Interruptible);
+
     MIO<B> Map<B>(Func<A, B> f) =>
         this.FlatMap((a) => MIO.SucceedNow(f(a)));
 
@@ -88,7 +91,11 @@ public interface MIO<A>
         else return this.ZipRight(() => Repeat(n - 1));
     }
 
-    internal Tags Tag { get; }
+    MIO<A> SetInterruptStatus(InterruptStatus status) =>
+        new SetInterruptStatus<A>(this, status);
+
+    MIO<A> Uninterruptible() =>
+        SetInterruptStatus(InterruptStatus.Uninterruptible);
 
     internal sealed Fiber<A> UnsafeRunFiber() =>
         new FiberContext<A>(this, Executor.Default());
@@ -226,6 +233,20 @@ public class Fork<A> : MIO<Fiber<A>>
     }
     internal FiberContext<A> CreateFiber(Executor executor) =>
         new FiberContext<A>(Mio, executor);
+}
+
+class SetInterruptStatus<A> : MIO<A>
+{
+    public Tags Tag => Tags.InterruptStatus;
+    public MIO<A> MIO { get; }
+    public InterruptStatus InterruptStatus { get; }
+    public SetInterruptStatus(MIO<A> MIO, InterruptStatus interruptStatus)
+    {
+        this.MIO = MIO;
+        this.InterruptStatus = interruptStatus;
+    }
+    public MIO<A> EnsuringOldStatus(MIO<Unit> finalizer) =>
+        MIO.Ensuring(finalizer);
 }
 
 public class Succeed<A> : MIO<A>

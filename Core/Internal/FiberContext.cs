@@ -48,7 +48,7 @@ internal class FiberContext<A> : Fiber<A>, Runnable
             Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId} {curMio} {stack.Count()}");
             try
             {
-                if (ShouldInterrupt())
+                if (UnsafeShouldInterrupt())
                 {
                     Interrupting.Value = true;
                     stack.Push(curMio);
@@ -118,6 +118,17 @@ internal class FiberContext<A> : Fiber<A>, Runnable
                             curMio = UnsafeNextEffect(fiber);
                             break;
 
+                        case Tags.InterruptStatus:
+                            var oldInterrruptible = this.Interruptible.Value;
+                            Interruptible.Value = InterruptStatusEnum.ToBoolean(curMio.InterruptStatus);
+                            var finalizer = MIO.Succeed(() =>
+                            {
+                                Interruptible.Value = oldInterrruptible;
+                                return Unit();
+                            });
+                            curMio = curMio.EnsuringOldStatus(finalizer);
+                            break;
+
                         case Tags.SucceedNow:
                             var value = curMio.Value;
                             curMio = UnsafeNextEffect(curMio.Value);
@@ -136,8 +147,6 @@ internal class FiberContext<A> : Fiber<A>, Runnable
         } 
         return Unit();
     }
-
-    bool ShouldInterrupt() => Interrupted.Value && Interruptible.Value && !Interrupting.Value;
 
     public Unit UnsafeAwait(Func<Exit<A>, Unit> callback)
     {
@@ -190,6 +199,9 @@ internal class FiberContext<A> : Fiber<A>, Runnable
         }
         return Unit();
     }
+
+    bool UnsafeShouldInterrupt() => 
+        Interrupted.Value && Interruptible.Value && !Interrupting.Value;
 
     Unit UnsafeTryDone(Exit<A> result)
     {
