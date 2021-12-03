@@ -38,10 +38,26 @@ public static class MIOWorkflow
 // unwind stack finalizer
 // fail unsafenext
 // fiberid
+// eventually
+// failCause instead of Failure
+// exit class vs exit method
+// internal/public/private
+// UninterruptibleMask append errors
+// interrupt status force
+// overload unit succeed
+// fiber descriptor
 public interface MIO<A>
 {
     MIO<B> As<B>(B b) => 
         this.Map((_) => b);
+
+    Acquire<A> AcquireReleaseWith() =>
+        MIO.AcquireReleaseWith(() => this);
+
+    MIO<B> Bracket<B>(Func<A, MIO<Unit>> release, Func<A, MIO<B>> use) =>
+        MIO.AcquireReleaseWith(() => this)
+            .Apply(a => release(a))
+            .Apply(a => use(a));
 
     MIO<A> CatchAll(Func<Exception, MIO<A>> f) =>
             FoldMIO(e => f(e), a => MIO.SucceedNow(a));
@@ -50,6 +66,11 @@ public interface MIO<A>
         FoldCauseMIO(
             cause => finalizer.ZipRight(() => MIO.Failure<A>(() => cause)),
             a => finalizer.ZipRight(() => MIO.SucceedNow(a)));
+    MIO<Exit<A>> Exit() =>
+        new Fold<A, Exit<A>>(
+            this, 
+            cause => MIO.SucceedNow(Mio.Exit.Failure<A>(cause)),
+            success => MIO.SucceedNow(Mio.Exit.Succeed(success)));
 
     MIO<B> FlatMap<B>(Func<A, MIO<B>> f) =>
         new FlatMap<A, B>(this, f);
@@ -92,7 +113,7 @@ public interface MIO<A>
     }
 
     MIO<A> SetInterruptStatus(InterruptStatus status) =>
-        new SetInterruptStatus<A>(this, status);
+        MIO.SetInterruptStatus<A>(this, status);
 
     MIO<A> Uninterruptible() =>
         SetInterruptStatus(InterruptStatus.Uninterruptible);
@@ -103,13 +124,13 @@ public interface MIO<A>
     Exit<A> UnsafeRunSync()
     {
         var latch = new CountdownEvent(1);
-        var result = Exit.Default<A>();
+        var result = Mio.Exit.Default<A>();
         var mio = this.FoldCauseMIO(
             cause =>
             {
                 return MIO.Succeed(() =>
                 {
-                    result = Exit.Failure<A>(cause);
+                    result = Mio.Exit.Failure<A>(cause);
                     latch.Signal();
                     return Unit();
                 });
@@ -118,7 +139,7 @@ public interface MIO<A>
             {
                 return MIO.Succeed(() =>
                 {
-                    result = Exit.Succeed(a);
+                    result = Mio.Exit.Succeed(a);
                     latch.Signal();
                     return Unit();
                 });
@@ -148,8 +169,10 @@ public enum Tags
     SucceedNow,
     Fail,
     Succeed,
+    Suspend,
     Async,
     InterruptStatus,
+    CheckInterrupt,
     Fork,
     Shift,
     Provide,
@@ -179,6 +202,16 @@ public class Async<A> : MIO<A>
         {
             return complete(Exit.Succeed<A>(a));
         });
+}
+
+public class CheckInterrupt<A> : MIO<A>
+{
+    public Tags Tag => Tags.CheckInterrupt;
+    public Func<InterruptStatus, MIO<A>> Cont { get; }
+    public CheckInterrupt(Func<InterruptStatus, MIO<A>> cont)
+    {
+        this.Cont = cont;
+    }
 }
 
 public class Fail<A> : MIO<A>
@@ -269,10 +302,52 @@ public class SucceedNow<A> : MIO<A>
     }
 }
 
+public class Suspend<A> : MIO<A>
+{
+    public Tags Tag => Tags.Suspend;
+    public Func<MIO<A>> Make { get; }
+    public Suspend(Func<MIO<A>> make)
+    {
+        this.Make = make;
+    }
+}
+
 public static class MIO
 {
+    public static Acquire<A> AcquireReleaseWith<A>(Func<MIO<A>> acquire) =>
+        new Acquire<A>(acquire);
+    public static MIO<B> AcquireReleaseWith<A, B>(
+        Func<MIO<A>> acquire,
+        Func<A, MIO<Unit>> release,
+        Func<A, MIO<B>> use) =>
+        AcquireReleaseExitWith(
+            acquire, 
+            (A a, Exit<B> b) => release(a),
+            use);
+    public static MIO<B> AcquireReleaseExitWith<A, B>(
+        Func<MIO<A>> acquire,
+        Func<A, Exit<B>, MIO<Unit>> release,
+        Func<A, MIO<B>> use) =>
+        MIO.UninterruptibleMask<B>(restore =>
+            acquire().FlatMap(a =>
+                MIO
+                .SuspendSucceed<B>(() => restore.Apply<B>(() => use(a)))
+                .Exit()
+                .FlatMap(e =>
+                    MIO
+                    .SuspendSucceed(() => release(a, e))
+                    .FoldCauseMIO<B>(
+                        cause2 => MIO.Failure<B>(() => cause2),
+                        _ => MIO.Done(e)
+                    )
+                )
+            )
+        );
+
     public static MIO<A> Async<A>(Func<Func<A, Unit>, Unit> register) =>
         new Async<A>(register);
+    public static MIO<A> CheckInterruptible<A>(Func<InterruptStatus, MIO<A>> f) =>
+        new CheckInterrupt<A>(f);
     public static MIO<Unit> Die(Exception ex) =>
         Failure<Unit>(() => Cause.Die(ex));
     public static MIO<A> Done<A>(Exit<A> Exit) =>
@@ -281,8 +356,14 @@ public static class MIO
         new Fail<A>(() => Cause.Fail(ex()));
     public static MIO<A> Failure<A>(Func<Cause> cause) =>
         new Fail<A>(cause);
+    public static MIO<A> SetInterruptStatus<A>(MIO<A> mio, InterruptStatus status) =>
+        new SetInterruptStatus<A>(mio, status);
     public static MIO<A> Succeed<A>(Func<A> f) =>
         new Succeed<A>(f);
     internal static MIO<A> SucceedNow<A>(A value) =>
         new SucceedNow<A>(value);
+    public static MIO<A> SuspendSucceed<A>(Func<MIO<A>> mio) =>
+        new Suspend<A>(mio);
+    public static MIO<A> UninterruptibleMask<A>(Func<InterruptStatusRestore, MIO<A>> k) =>
+        CheckInterruptible(flag => k(InterruptStatusRestoreHelper.Apply(flag)).Uninterruptible());
 }

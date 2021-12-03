@@ -20,6 +20,12 @@ public struct Exit<A>
         Exception = null;
     }
 
+    public Z Fold<Z>(Func<Cause, Z> failed, Func<A, Z> completed) =>
+        this.Match(
+            cause => failed(cause),
+            v => completed(v)
+        );
+
     public B Match<B>(Func<Cause, B> Cause, Func<A, B> Success)
         => this.Failure ? Cause(Exception) : Success(Value);
 

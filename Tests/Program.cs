@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleToAttribute("Core")]
 
-var app = App.Uninterruptible();
+var app = App.BracketNestedErrorKnown();
 app.Main(args);
 
 class StackSafety : MIOApp<Unit>
@@ -280,7 +280,7 @@ class Uninterruptible : MIOApp<Unit>
         return Unit();
     });
 
-    static MIO<Unit> Uninterruptible = 
+    static MIO<Unit> Program = 
         from fiber in WriteLine("Howdy!")
             .Repeat(10000)
             .Uninterruptible()
@@ -295,22 +295,138 @@ class Uninterruptible : MIOApp<Unit>
         from _ in fiber.Interrupt()
         select Unit();
 
-    static MIO<Unit> UninterruptibleSwitchBack = 
-        from fiber in WriteLine("Howdy!")
-            .Repeat(10000)
-            .Uninterruptible()
-            .ZipRight(() => WriteLine("Howdy! Howdy!").Forever())
-            .Ensuring(WriteLine("Goodbye"))
-            .Fork()
-        from sleep in MIO.Succeed(() => 
-        {
-            Thread.Sleep(100);
-            return Unit();
-        })
-        from _ in fiber.Interrupt()
-        select Unit();
+    public MIO<Unit> Run() => Program;
+}
 
-    public MIO<Unit> Run() => Uninterruptible;
+class Bracket : MIOApp<string>
+{
+    static MIO<FileStream> OpenFile(string path) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("Open");
+        return File.OpenRead(path);
+    });
+
+    static MIO<Unit> CloseFile(FileStream fs) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("Close");
+        fs.Close();
+        return Unit();
+    });
+
+    static MIO<string> DecodeData(FileStream fs) => MIO.Succeed(() => 
+    {
+        using var sr = new StreamReader(fs, System.Text.Encoding.UTF8);
+        return sr.ReadToEnd();
+    });
+
+    static MIO<string> Program = 
+        OpenFile("File.txt")
+            .AcquireReleaseWith()
+            .Apply(f => CloseFile(f))
+            .Apply(file =>
+                from data in DecodeData(file)
+                select data
+            );
+
+    public MIO<string> Run() => Program;
+}
+
+class BracketNested : MIOApp<string>
+{
+    static MIO<FileStream> OpenFile(string path) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("OpenFile");
+        return File.OpenRead(path);
+    });
+
+    static MIO<Unit> CloseFile(FileStream fs) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("CloseFile");
+        fs.Close();
+        return Unit();
+    });
+
+    static MIO<StreamReader> ReadStream(FileStream fs) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("ReadStream");
+        return new StreamReader(fs, System.Text.Encoding.UTF8);
+    });
+
+    static MIO<Unit> CloseStream(StreamReader sr) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("CloseStream");
+        sr.Close();
+        return Unit();
+    });
+
+    static MIO<string> DecodeData(StreamReader sr) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("DecodeData");
+        return sr.ReadToEnd();
+    });
+
+    static MIO<string> Program = 
+        OpenFile("File.txt")
+            .Bracket(
+                fs => CloseFile(fs),
+                fs => ReadStream(fs).Bracket(
+                    sr => CloseStream(sr),
+                    sr => DecodeData(sr)
+                ));
+
+    public MIO<string> Run() => Program;
+}
+
+class BracketNestedErrorKnown : MIOApp<string>
+{
+    static MIO<FileStream> OpenFile(string path) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("OpenFile");
+        return File.OpenRead(path);
+    });
+
+    static MIO<Unit> CloseFile(FileStream fs) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("CloseFile");
+        fs.Close();
+        return Unit();
+    });
+
+    static MIO<StreamReader> ReadStream(FileStream fs) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("ReadStream");
+        return new StreamReader(fs, System.Text.Encoding.UTF8);
+    });
+
+    static MIO<Unit> CloseStream(StreamReader sr) => MIO.Succeed(() => 
+    {
+        Console.WriteLine("CloseStream");
+        sr.Close();
+        return Unit();
+    });
+
+    static MIO<string> DecodeData(StreamReader sr) => MIO.Fail<string>(() => 
+    {
+        Console.WriteLine("DecodeData");
+        return new Exception("Huh???");
+    });
+
+    static MIO<string> DecodeDataHuh(StreamReader sr) => MIO.Succeed<string>(() => 
+    {
+        Console.WriteLine("DecodeData");
+        throw new Exception("Huh???");
+    });
+
+    static MIO<string> Program = 
+        OpenFile("File.txt")
+            .Bracket(
+                fs => CloseFile(fs),
+                fs => ReadStream(fs).Bracket(
+                    sr => CloseStream(sr),
+                    sr => DecodeDataHuh(sr)
+                ));
+
+    public MIO<string> Run() => Program;
 }
 
 static class App
@@ -318,6 +434,9 @@ static class App
     public static MIOApp<int> Async() => new Async();
     public static MIOApp<Unit> AsyncStackSafety() => new AsyncStackSafety();
     public static MIOApp<Unit> AsyncStackSafetyFork() => new AsyncStackSafetyFork();
+    public static MIOApp<string> Bracket() => new Bracket();
+    public static MIOApp<string> BracketNested() => new BracketNested();
+    public static MIOApp<string> BracketNestedErrorKnown() => new BracketNestedErrorKnown();
     public static MIOApp<Unit> ErrorHandling() => new ErrorHandling();
     public static MIOApp<Unit> ErrorHandlingThrow() => new ErrorHandlingThrow();
     public static MIOApp<int> ErrorHandlingThrowCatch() => new ErrorHandlingThrowCatch();

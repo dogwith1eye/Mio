@@ -77,6 +77,10 @@ internal class FiberContext<A> : Fiber<A>, Runnable
                             }
                             break;
 
+                        case Tags.CheckInterrupt:
+                            curMio = curMio.Cont(InterruptStatusEnum.FromBoolean(Interruptible.Value));
+                            break;
+
                         case Tags.Fail:
                             var errorHandler = UnsafeUnwindStack();
                             if (errorHandler is null)
@@ -136,6 +140,10 @@ internal class FiberContext<A> : Fiber<A>, Runnable
                         
                         case Tags.Succeed:
                             curMio = UnsafeNextEffect(curMio.Effect());
+                            break;
+
+                        case Tags.Suspend:
+                            curMio = curMio.Make();
                             break;
                     }
                 }
