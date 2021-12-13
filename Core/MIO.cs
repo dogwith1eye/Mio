@@ -46,6 +46,7 @@ public static class MIOWorkflow
 // interrupt status force
 // overload unit succeed
 // fiber descriptor
+// friendly stack trace for exception
 public interface MIO<A>
 {
     MIO<B> As<B>(B b) => 
@@ -360,6 +361,12 @@ public static class MIO
         new SetInterruptStatus<A>(mio, status);
     public static MIO<A> Succeed<A>(Func<A> f) =>
         new Succeed<A>(f);
+    public static MIO<Unit> Succeed(Action f) =>
+        new Succeed<Unit>(() =>
+        {
+            f();
+            return Unit();
+        });
     internal static MIO<A> SucceedNow<A>(A value) =>
         new SucceedNow<A>(value);
     public static MIO<A> SuspendSucceed<A>(Func<MIO<A>> mio) =>

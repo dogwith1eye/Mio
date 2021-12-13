@@ -31,7 +31,7 @@ public struct Exit<A>
 
     public override string ToString() 
         => Match(
-            ex => $"{ex.ThreadId} Failure({ex.Tag}({ex.Exception.Message}))",
+            ex => $"{ex.ThreadId} Failure({ex.Tag}({ex.Exception.Message} {ex.Exception.StackTrace}))",
             t => $"Success({t})");
 }
 
